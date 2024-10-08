@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fire Extinguisher Classifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+        video {
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Fire Extinguisher Classifier</h1>
+        <p>Press "Start" to begin and bring the extinguisher in front of the camera to classify it.</p>
+
+        <button id="startButton">Start</button>
+
+        <div id="webcam-container"></div>
+        <div id="label-container"></div>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        const URL = "./my_model/"; // 모델 파일의 경로
+
+        let model, webcam, labelContainer, maxPredictions;
+
+        // Start 버튼을 눌렀을 때 카메라와 모델을 초기화
+        document.getElementById('startButton').addEventListener('click', async function() {
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('startButton').innerText = 'Loading...';
+
+            await init();
+            document.getElementById('startButton').style.display = 'none';
+        });
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // 웹캠 설정 (후면 카메라 사용)
+            const constraints = {
+                video: {
+                    facingMode: "environment", // 후면 카메라 사용
+                    width: 200,
+                    height: 200
+                }
+            };
+
+            webcam = new tmImage.Webcam(200, 200, true); // 너비, 높이, 반전
+            await webcam.setup(constraints); // 웹캠 접근 요청
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            webcam.update(); // 웹캠 프레임 업데이트
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            let topPrediction = prediction[0]; // 가장 높은 확률의 예측
+
+            const classPrediction = topPrediction.className + ": " + topPrediction.probability.toFixed(2);
+            labelContainer.childNodes[0].innerHTML = classPrediction;
+
+            if (topPrediction.className === 'foam') {
+                displayFoamMessage();
+            } else if (topPrediction.className === 'powder') {
+                displayPowderMessage();
+            } else {
+                document.getElementById('result').innerHTML = "<p style='color:red;'>Unknown extinguisher type</p>";
+            }
+        }
+
+        function displayFoamMessage() {
+            document.getElementById('result').innerHTML = `
+                <h3>폼(Foam) 소화기</h3>
+                <p>A급 화재: 일반화재</p>
+                <p>B급 화재: 유류화재(알코올, 유기 용제, 석유류, 가스 등 액체 화재)</p>
+                <ul>
+                    <li>1. 소화기 레버패킹 확인</li>
+                    <li>2. 밖에 손상된 부위 확인</li>
+                    <li>3. 손잡이 고착 확인</li>
+                    <li>4. 연차검사 스티커 확인</li>
+                </ul>
+            `;
+        }
+
+        function displayPowderMessage() {
+            document.getElementById('result').innerHTML = `
+                <h3>Portable Dry Powder Extinguisher</h3>
+                <p>A급 화재, B급 화재, C급 화재, F급 화재, K급 화재</p>
+                <ul>
+                    <li>소화기의 부식 및 손상 여부를 육안으로 검사</li>
+                    <li>안전 핀과 Tamper Seal이 장착되어 있는지 확인</li>
+                    <li>압력게이지의 바늘이 녹색부분을 나타내는 지 확인</li>
+                    <li>소화기의 작동 지침이 명확하고 읽을 수 있는지 확인</li>
+                    <li>배출 호스를 분리하고 막힘 및 부식 여부 확인</li>
+                    <li>소화 밸브가 잘 동작하는지 확인</li>
+                    <li>소화기 무게를 측정하고 서비스 라벨에 기록</li>
+                    <li>소화기의 무게가 10% 이상 감소한 경우 재충전하기</li>
+                    <li>소화기를 청결하게 관리하기</li>
+                </ul>
+            `;
+        }
+
+    </script>
+
+</body>
+</html>
